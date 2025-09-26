@@ -1,0 +1,6 @@
+github.com/canavan-a/broom/node v0.0.0-20250926142658-776464e5b90b h1:nWXIFaAh1iXQ0xV525eKG2G7mz73EOzirfwY6oUtxCw=
+github.com/canavan-a/broom/node v0.0.0-20250926142658-776464e5b90b/go.mod h1:z9Rsz7FxNgvc/r/EZKq3mJFp98ZtcE3GQPodXG1KUk8=
+golang.org/x/crypto v0.42.0 h1:chiH31gIWm57EkTXpwnqf8qeuMUi0yekh6mT2AvFlqI=
+golang.org/x/crypto v0.42.0/go.mod h1:4+rDnOTJhQCx2q7/j6rAN5XDw8kPjeaXEUR2eL94ix8=
+golang.org/x/sys v0.36.0 h1:KVRy2GtZBrk1cBYA7MKu5bEZFxQk4NIDV6RLVcC8o0k=
+golang.org/x/sys v0.36.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
