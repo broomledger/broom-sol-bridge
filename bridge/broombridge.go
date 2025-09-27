@@ -9,10 +9,6 @@ import (
 	netnode "github.com/canavan-a/broom/node/netnode"
 )
 
-const BROOM_BRIDGE_WALLET = "my wallet address here"
-
-const BLOCK_BUFFER = 15
-
 // need to wait 15 blocks before we can mint to the address
 
 // REQUIREMENTS
@@ -30,14 +26,14 @@ const BLOCK_BUFFER = 15
 //  extra condition: if bridge block never connects to tip, we have a maximum threshold, if its too far back without connecting throw out the bridge block that was originally stashed
 
 type BroomBridge struct {
-	netnode.Executor
+	*netnode.Executor
 }
 
 func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir string) *BroomBridge {
 
 	ex := netnode.NewExecutor(myAddress, "", netnode.BROOMBASE_DEFAULT_DIR, netnode.LEDGER_DEFAULT_DIR)
 
-	return &BroomBridge{*ex}
+	return &BroomBridge{ex}
 }
 
 func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
