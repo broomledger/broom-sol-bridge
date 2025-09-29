@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,6 +68,16 @@ func (br *BridgeRunner) ReceiveBlock(b netnode.Block) error {
 
 }
 
+func (br *BridgeRunner) SaveBridgeTxn(hash string, txn netnode.Transaction) error {
+	data, err := json.Marshal(txn)
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("%s/%s.txn", FULFILLED_TXN_DIR, hash)
+	return os.WriteFile(path, data, 0644)
+}
+
 func (bb *BridgeRunner) GetBlock(hash string, height int64) (block netnode.Block, found bool) {
 
 	path := fmt.Sprintf("%s/%d_%s.broom", BRIDGE_BLOCK_DIR, height, hash)
@@ -82,6 +94,24 @@ func (bb *BridgeRunner) GetBlock(hash string, height int64) (block netnode.Block
 	}
 
 	return b, true
+}
+
+func (bb *BridgeRunner) GetBridgeTransaction(hash string) (block netnode.Transaction, found bool) {
+
+	path := fmt.Sprintf("%s/%s.txn", FULFILLED_TXN_DIR, hash)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// file not found or read error
+		return netnode.Transaction{}, false
+	}
+
+	var txn netnode.Transaction
+	err = json.Unmarshal(data, &txn)
+	if err != nil {
+		return netnode.Transaction{}, false
+	}
+
+	return txn, true
 }
 
 // hashChain is all the valid hashes we can process bridge txns on
@@ -130,7 +160,51 @@ func (bb *BridgeRunner) ProcessBridge(currentHeight int, hashChain []netnode.Has
 		// add valid txns to txn dir
 		// start process to mint
 
+		block, found := bb.GetBlock(pending.Hash, int64(pending.Height))
+		if !found {
+			continue
+		}
+
+		for _, txn := range block.Transactions {
+			if txn.To == BROOM_BRIDGE_WALLET_ADDRESS {
+				bb.ProcessBridgeTransaction(txn)
+			}
+		}
+
+		if bb.RemoveBridgeBlock(pending.Hash, pending.Height) != nil {
+			panic("should exist")
+		}
+
 	}
+
+	return nil
+
+}
+
+func (br *BridgeRunner) ProcessBridgeTransaction(txn netnode.Transaction) {
+	serialized := txn.Serialize()
+
+	hash := sha256.Sum256(serialized)
+
+	hashValue := hex.EncodeToString(hash[:])
+
+	_, found := br.GetBridgeTransaction(hashValue)
+	if found {
+		// txn already processed
+		return
+	}
+
+	br.SendSol(txn)
+
+	err := br.SaveBridgeTxn(hashValue, txn)
+	if err != nil {
+		panic("txn sent but could not be saved")
+
+	}
+}
+
+func (br *BridgeRunner) SendSol(txn netnode.Transaction) error {
+	fmt.Println("sending sol to account")
 
 	return nil
 
