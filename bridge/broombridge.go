@@ -2,11 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
 	"time"
 
 	netnode "github.com/canavan-a/broom/node/netnode"
+	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 )
 
 // need to wait 15 blocks before we can mint to the address
@@ -25,15 +30,96 @@ import (
 
 //  extra condition: if bridge block never connects to tip, we have a maximum threshold, if its too far back without connecting throw out the bridge block that was originally stashed
 
+const TOKEN_ID = "EJtfMsN3qfh8QJJfpEmWVxW43MPH522xtXBfvJNA9Bdk"
+
 type BroomBridge struct {
 	*netnode.Executor
+	private solana.PrivateKey
+	public  solana.PublicKey
+	client  rpc.Client
+	// public solana
 }
 
 func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir string) *BroomBridge {
 
 	ex := netnode.NewExecutor(myAddress, "", netnode.BROOMBASE_DEFAULT_DIR, netnode.LEDGER_DEFAULT_DIR)
 
-	return &BroomBridge{ex}
+	bb := &BroomBridge{Executor: ex}
+
+	bb.LoadKeys()
+
+	bb.DialClient()
+
+	return bb
+}
+
+func (bb *BroomBridge) LoadKeys() {
+	data, _ := os.ReadFile("id.json")
+
+	var keyBytes []byte
+	json.Unmarshal(data, &keyBytes)
+
+	privKey := solana.PrivateKey(keyBytes)
+	pubKey := privKey.PublicKey()
+
+	bb.private = privKey
+	bb.public = pubKey
+
+	fmt.Println("Public key: ", pubKey)
+
+}
+
+func (bb *BroomBridge) DialClient() {
+	client := rpc.New(rpc.MainNetBeta_RPC)
+	bb.client = *client
+}
+
+func (bb *BroomBridge) MakeAccount(address string) error {
+	// peerWallet := solana.NewWallet()
+
+	parsedAddress := solana.MustPublicKeyFromBase58(address)
+
+	mint := solana.MustPublicKeyFromBase58(TOKEN_ID)
+	ata, _, _ := solana.FindAssociatedTokenAddress(parsedAddress, mint)
+
+	ix := token.NewInitializeAccount2Instruction(
+		parsedAddress,
+		ata,
+		mint,
+		solana.SysVarRentPubkey,
+	).Build()
+
+	recent, err := bb.client.GetRecentBlockhash(context.Background(), rpc.CommitmentFinalized)
+	if err != nil {
+		return err
+	}
+
+	tx, err := solana.NewTransaction(
+		[]solana.Instruction{ix},
+		recent.Value.Blockhash,
+	)
+	if err != nil {
+		return err
+	}
+
+	x := func(solana.PublicKey) *solana.PrivateKey {
+		return &bb.private
+	}
+	_, err = tx.Sign(x)
+	if err != nil {
+		return err
+	}
+
+	sig, err := bb.client.SendTransaction(context.Background(), tx)
+	if err != nil {
+		return err
+	}
+
+	bb.client.GetConfirmedTransaction(context.Background(), sig)
+
+	// confirm txn here
+
+	return nil
 }
 
 func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
