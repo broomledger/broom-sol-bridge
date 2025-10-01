@@ -10,7 +10,7 @@ import (
 
 	netnode "github.com/canavan-a/broom/node/netnode"
 	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/token"
+	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
@@ -29,6 +29,8 @@ import (
 //       if it is, trace back through to see if the chain connects back from highest to bridge block
 
 //  extra condition: if bridge block never connects to tip, we have a maximum threshold, if its too far back without connecting throw out the bridge block that was originally stashed
+
+const BRIDGE_SOL_ADDRESS = "5EzYAKuTXtPadcmozKJW3GfBZ244K2fk79SfLrnzkwcu"
 
 const TOKEN_ID = "EJtfMsN3qfh8QJJfpEmWVxW43MPH522xtXBfvJNA9Bdk"
 
@@ -74,52 +76,87 @@ func (bb *BroomBridge) DialClient() {
 	bb.client = *client
 }
 
-func (bb *BroomBridge) MakeAccount(address string) error {
-	// peerWallet := solana.NewWallet()
+func (bb *BroomBridge) FindAssociated(mint, wallet solana.PublicKey) (found bool) {
+	associatedTokenAddress, _, _ := solana.FindAssociatedTokenAddress(
+		wallet,
+		mint,
+	)
+
+	fmt.Println("real ata: ", associatedTokenAddress.String())
+
+	ata, err := bb.client.GetAccountInfo(context.Background(), associatedTokenAddress)
+	if err != nil {
+		fmt.Println("ATA does not exist or error:", err)
+		return false
+	} else {
+		fmt.Println("pos ata: ", solana.PublicKey(ata.Bytes()).String())
+		return true
+	}
+
+}
+
+func (bb *BroomBridge) MakeAccount(address string) (exists bool, err error) {
 
 	parsedAddress := solana.MustPublicKeyFromBase58(address)
 
 	mint := solana.MustPublicKeyFromBase58(TOKEN_ID)
-	ata, _, _ := solana.FindAssociatedTokenAddress(parsedAddress, mint)
 
-	ix := token.NewInitializeAccount2Instruction(
-		parsedAddress,
-		ata,
-		mint,
-		solana.SysVarRentPubkey,
-	).Build()
+	payer := solana.MustPublicKeyFromBase58(BRIDGE_SOL_ADDRESS)
 
-	recent, err := bb.client.GetRecentBlockhash(context.Background(), rpc.CommitmentFinalized)
-	if err != nil {
-		return err
+	// check if associated account exists
+
+	found := bb.FindAssociated(mint, parsedAddress)
+	if found {
+		return true, nil
 	}
 
+	ix := associatedtokenaccount.NewCreateInstruction(
+		payer,         // pays for rent
+		parsedAddress, // token account owner
+		mint,          // token mint
+	).Build()
+
+	fmt.Println("build txn")
+
+	out, err := bb.client.GetLatestBlockhash(context.Background(), rpc.CommitmentFinalized)
+	if err != nil {
+		return false, err
+	}
+
+	// create txn
 	tx, err := solana.NewTransaction(
 		[]solana.Instruction{ix},
-		recent.Value.Blockhash,
+		out.Value.Blockhash,
+		solana.TransactionPayer(bb.private.PublicKey()),
 	)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	x := func(solana.PublicKey) *solana.PrivateKey {
 		return &bb.private
 	}
+
 	_, err = tx.Sign(x)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	sig, err := bb.client.SendTransaction(context.Background(), tx)
+	_, err = bb.client.SendTransaction(context.Background(), tx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	bb.client.GetConfirmedTransaction(context.Background(), sig)
+	// spin until token account is confirmed
+	for {
+		found := bb.FindAssociated(mint, parsedAddress)
+		if found {
+			return true, nil
+		}
+		fmt.Println("trying again")
+		time.Sleep(1 * time.Second)
+	}
 
-	// confirm txn here
-
-	return nil
 }
 
 func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
