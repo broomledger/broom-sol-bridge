@@ -24,9 +24,10 @@ const FULFILLED_TXN_DIR = "bridgetxns"
 const BROOM_BRIDGE_WALLET_ADDRESS = "my wallet address here"
 
 type BridgeRunner struct {
+	BridgeHandler func(netnode.Transaction) error
 }
 
-func NewBridgeRunner() (br *BridgeRunner) {
+func NewBridgeRunner(bridgeHandler func(netnode.Transaction) error) (br *BridgeRunner) {
 	if _, err := os.Stat(BRIDGE_BLOCK_DIR); os.IsNotExist(err) {
 		_ = os.MkdirAll(BRIDGE_BLOCK_DIR, 0755) // create if missing
 	}
@@ -34,7 +35,11 @@ func NewBridgeRunner() (br *BridgeRunner) {
 		_ = os.MkdirAll(FULFILLED_TXN_DIR, 0755) // create if missing
 	}
 
-	return &BridgeRunner{}
+	br = &BridgeRunner{
+		BridgeHandler: bridgeHandler,
+	}
+
+	return br
 }
 
 // assume we are passing a validated block (already stored in broombase)
@@ -194,9 +199,13 @@ func (br *BridgeRunner) ProcessBridgeTransaction(txn netnode.Transaction) {
 		return
 	}
 
-	br.SendSol(txn)
+	err := br.SendSol(txn)
+	if err != nil {
+		// do not save txn (skips), it failed
+		return
+	}
 
-	err := br.SaveBridgeTxn(hashValue, txn)
+	err = br.SaveBridgeTxn(hashValue, txn)
 	if err != nil {
 		panic("txn sent but could not be saved")
 
@@ -205,8 +214,9 @@ func (br *BridgeRunner) ProcessBridgeTransaction(txn netnode.Transaction) {
 
 func (br *BridgeRunner) SendSol(txn netnode.Transaction) error {
 	fmt.Println("sending sol to account")
+	err := br.BridgeHandler(txn)
 
-	return nil
+	return err
 
 }
 

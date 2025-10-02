@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -11,6 +12,7 @@ import (
 	netnode "github.com/canavan-a/broom/node/netnode"
 	"github.com/gagliardetto/solana-go"
 	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
+	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
@@ -34,12 +36,19 @@ const BRIDGE_SOL_ADDRESS = "5EzYAKuTXtPadcmozKJW3GfBZ244K2fk79SfLrnzkwcu"
 
 const TOKEN_ID = "EJtfMsN3qfh8QJJfpEmWVxW43MPH522xtXBfvJNA9Bdk"
 
+const MIN_BRIDGE_AMT = 10_000 // base units
+
+const INITIAL_FEE_PERCENTAGE = 0.10
+
+const STANDARD_FEE_PERCENTAGE = 0.001
+
 type BroomBridge struct {
 	*netnode.Executor
 	private solana.PrivateKey
 	public  solana.PublicKey
 	client  rpc.Client
 	// public solana
+	runner *BridgeRunner
 }
 
 func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir string) *BroomBridge {
@@ -52,7 +61,64 @@ func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir s
 
 	bb.DialClient()
 
+	bb.runner = NewBridgeRunner(bb.TransactionHandler)
+
 	return bb
+}
+
+func (bb *BroomBridge) TransactionHandler(txn netnode.Transaction) error {
+
+	solAddress := txn.Note
+
+	pubKey, err := solana.PublicKeyFromBase58(solAddress)
+	if err != nil {
+		return err
+	}
+
+	mint, err := solana.PublicKeyFromBase58(TOKEN_ID)
+	if err != nil {
+		return err
+	}
+
+	accountExists := bb.FindAssociated(mint, pubKey)
+	percent := INITIAL_FEE_PERCENTAGE
+	if accountExists {
+		fmt.Println("account exists use standard percent")
+
+		percent = STANDARD_FEE_PERCENTAGE
+		fmt.Println(percent)
+	}
+
+	if txn.Amount < MIN_BRIDGE_AMT {
+		return errors.New("txn amount is too low")
+	}
+
+	fee := int64(float64(txn.Amount) * percent)
+
+	fmt.Println(fee)
+
+	amountWithoutFee := txn.Amount - fee
+
+	exists, err := bb.MakeAndWaitForAta(solAddress)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return errors.New("could not make ata")
+	}
+
+	ata, _, _ := solana.FindAssociatedTokenAddress(
+		pubKey,
+		mint,
+	)
+
+	err = bb.MintToken(ata, uint64(amountWithoutFee))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (bb *BroomBridge) LoadKeys() {
@@ -82,8 +148,6 @@ func (bb *BroomBridge) FindAssociated(mint, wallet solana.PublicKey) (found bool
 		mint,
 	)
 
-	fmt.Println("real ata: ", associatedTokenAddress.String())
-
 	ata, err := bb.client.GetAccountInfo(context.Background(), associatedTokenAddress)
 	if err != nil {
 		fmt.Println("ATA does not exist or error:", err)
@@ -95,7 +159,45 @@ func (bb *BroomBridge) FindAssociated(mint, wallet solana.PublicKey) (found bool
 
 }
 
-func (bb *BroomBridge) MakeAccount(address string) (exists bool, err error) {
+func (bb *BroomBridge) MintToken(ata solana.PublicKey, amount uint64) error {
+
+	mint := solana.MustPublicKeyFromBase58(TOKEN_ID)
+
+	out, err := bb.client.GetLatestBlockhash(context.Background(), rpc.CommitmentFinalized)
+	if err != nil {
+		return err
+	}
+
+	ix := token.NewMintToInstruction(
+		amount,
+		mint,
+		ata,
+		bb.private.PublicKey(), // mint authority
+		nil,                    // multisig signers
+	).Build()
+
+	tx, err := solana.NewTransaction(
+		[]solana.Instruction{ix},
+		out.Value.Blockhash,
+		solana.TransactionPayer(bb.private.PublicKey()),
+	)
+	if err != nil {
+		return err
+	}
+
+	x := func(solana.PublicKey) *solana.PrivateKey {
+		return &bb.private
+	}
+
+	if _, err := tx.Sign(x); err != nil {
+		return err
+	}
+
+	_, err = bb.client.SendTransaction(context.Background(), tx)
+	return err
+}
+
+func (bb *BroomBridge) MakeAndWaitForAta(address string) (exists bool, err error) {
 
 	parsedAddress := solana.MustPublicKeyFromBase58(address)
 
