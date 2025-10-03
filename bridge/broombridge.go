@@ -300,6 +300,38 @@ func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
 
 }
 
+func (bb *BroomBridge) GenerateHashChain() (hashChain []netnode.HashHeight) {
+	height, hash, err := bb.Database.GetHighestBlock()
+	if err != nil {
+		panic(err)
+	}
+
+	cur := netnode.HashHeight{
+		Height: int(height),
+		Hash:   hash,
+	}
+
+	hashChain = append(hashChain, cur)
+
+	for {
+		if len(hashChain) > LOOKBACK_CUTOFF+5 {
+			return
+		}
+
+		block, found := bb.Database.GetBlock(cur.Hash, int64(cur.Height))
+		if !found {
+			panic("block not found")
+		}
+
+		cur = netnode.HashHeight{
+			Height: int(block.Height),
+			Hash:   block.Hash,
+		}
+		hashChain = append(hashChain, cur)
+	}
+
+}
+
 func (ex *BroomBridge) bb_Loop() {
 
 	ctx := context.Background()
@@ -380,6 +412,24 @@ func (ex *BroomBridge) bb_Loop() {
 
 				// no error
 				if currentSolution {
+
+					// run bridgerunner rec block
+					err := ex.runner.ReceiveBlock(block)
+					if err != nil {
+						fmt.Println("error receiving bridge block")
+						fmt.Println(err)
+					}
+
+					// get the hashchain to help validate blocks
+					hc := ex.GenerateHashChain()
+
+					//process txns that could send sol to an address
+					err = ex.runner.ProcessBridge(int(ex.Database.Ledger.BlockHeight), hc)
+					if err != nil {
+						fmt.Println("error processing bridge")
+						fmt.Println(err)
+					}
+
 					fmt.Println("block is current ledger solution")
 					// smart clear the mempool because we might have valid txns not included in the block
 					for txnSig := range block.Transactions {

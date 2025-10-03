@@ -121,6 +121,7 @@ func (bb *BridgeRunner) GetBridgeTransaction(hash string) (block netnode.Transac
 
 // hashChain is all the valid hashes we can process bridge txns on
 // example: we are on block
+
 func (bb *BridgeRunner) ProcessBridge(currentHeight int, hashChain []netnode.HashHeight) error {
 	files, err := os.ReadDir(BRIDGE_BLOCK_DIR)
 	if err != nil {
@@ -161,12 +162,19 @@ func (bb *BridgeRunner) ProcessBridge(currentHeight int, hashChain []netnode.Has
 
 		}
 
-		// TODO:
-		// add valid txns to txn dir
-		// start process to mint
-
 		block, found := bb.GetBlock(pending.Hash, int64(pending.Height))
 		if !found {
+			continue
+		}
+
+		// is block in our hashChain
+		var chainFound bool
+		for _, chain := range hashChain {
+			if block.Hash == chain.Hash {
+				chainFound = true
+			}
+		}
+		if !chainFound {
 			continue
 		}
 
