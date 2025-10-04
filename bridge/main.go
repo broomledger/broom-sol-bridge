@@ -13,6 +13,11 @@ func main() {
 
 	bb := NewBroomBridge("", "", netnode.BROOMBASE_DEFAULT_DIR, netnode.LEDGER_DEFAULT_DIR)
 
-	bb.bb_Start(args[0], args[1:]...)
+	if args[0] == "backup" {
+		bb.Executor.DownloadBackupFileFromPeer("node.broomledger.com")
+	} else {
+		bb.bb_Start(args[0], args[1:]...)
+
+	}
 
 }
