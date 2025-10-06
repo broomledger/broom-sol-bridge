@@ -67,3 +67,19 @@ func TestTransactionHandler(t *testing.T) {
 
 	panic("test failed")
 }
+
+func TestSolScan(t *testing.T) {
+	fmt.Println("hello world")
+	bb := BroomBridge{}
+	bb.LoadKeys()
+	fmt.Println(bb.public.String())
+	bb.DialClient()
+
+	err := bb.RunSolScan()
+	if err != nil {
+		fmt.Println("ERROR")
+		fmt.Println(err)
+	}
+
+	panic("test failed")
+}

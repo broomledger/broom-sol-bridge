@@ -66,6 +66,49 @@ func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir s
 	return bb
 }
 
+// SOL -> Broom
+func Uint64Ptr(v uint64) *uint64 { return &v }
+
+func (bb *BroomBridge) RunSolScan() error {
+	splAddress := solana.MustPublicKeyFromBase58(BRIDGE_SOL_ADDRESS)
+
+	sigs, err := bb.client.GetSignaturesForAddress(
+		context.Background(),
+		splAddress,
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("starting txn loop")
+	fmt.Println("len of sigs: ", len(sigs))
+
+	for _, s := range sigs {
+
+		fmt.Println(s.Signature)
+
+		fmt.Println(s.Memo)
+
+		tx, err := bb.client.GetTransaction(context.Background(), s.Signature, &rpc.GetTransactionOpts{
+			Encoding:                       solana.EncodingBase64,
+			Commitment:                     rpc.CommitmentFinalized,
+			MaxSupportedTransactionVersion: Uint64Ptr(0),
+		})
+		if err != nil {
+			return err
+		}
+
+		err = bb.runner.ProcessSOLTxn(tx)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+
+}
+
 func (bb *BroomBridge) TransactionHandler(txn netnode.Transaction) error {
 
 	solAddress := txn.Note
@@ -138,7 +181,7 @@ func (bb *BroomBridge) LoadKeys() {
 }
 
 func (bb *BroomBridge) DialClient() {
-	client := rpc.New(rpc.MainNetBeta_RPC)
+	client := rpc.New("https://api.mainnet-beta.solana.com")
 	bb.client = *client
 }
 

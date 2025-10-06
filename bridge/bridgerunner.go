@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	netnode "github.com/canavan-a/broom/node/netnode"
+	"github.com/gagliardetto/solana-go/rpc"
 )
 
 const LOOKBACK_BLOCKS = 15
@@ -20,6 +21,8 @@ const LOOKBACK_CUTOFF = 40
 const BRIDGE_BLOCK_DIR = "bridgeblocks"
 
 const FULFILLED_TXN_DIR = "bridgetxns"
+
+const PROCESSED_SOL_TXN_DIR = "soltxns"
 
 const BROOM_BRIDGE_WALLET_ADDRESS = "my wallet address here"
 
@@ -33,6 +36,9 @@ func NewBridgeRunner(bridgeHandler func(netnode.Transaction) error) (br *BridgeR
 	}
 	if _, err := os.Stat(FULFILLED_TXN_DIR); os.IsNotExist(err) {
 		_ = os.MkdirAll(FULFILLED_TXN_DIR, 0755) // create if missing
+	}
+	if _, err := os.Stat(PROCESSED_SOL_TXN_DIR); os.IsNotExist(err) {
+		_ = os.MkdirAll(PROCESSED_SOL_TXN_DIR, 0755) // create if missing
 	}
 
 	br = &BridgeRunner{
@@ -231,4 +237,19 @@ func (br *BridgeRunner) SendSol(txn netnode.Transaction) error {
 func (bb *BridgeRunner) RemoveBridgeBlock(hash string, height int) error {
 	path := fmt.Sprintf("%s/%d_%s.broom", BRIDGE_BLOCK_DIR, height, hash)
 	return os.Remove(path)
+}
+
+func (br *BridgeRunner) ProcessSOLTxn(txn *rpc.GetTransactionResult) error {
+
+	fmt.Println("gettings sol txn")
+
+	pre := txn.Meta.PreBalances
+
+	fmt.Println(pre)
+
+	post := txn.Meta.PostBalances
+
+	fmt.Println(post)
+
+	return nil
 }
