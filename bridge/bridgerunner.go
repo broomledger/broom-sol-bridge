@@ -241,15 +241,27 @@ func (bb *BridgeRunner) RemoveBridgeBlock(hash string, height int) error {
 
 func (br *BridgeRunner) ProcessSOLTxn(txn *rpc.GetTransactionResult) error {
 
-	fmt.Println("gettings sol txn")
+	// find balance increase
 
-	pre := txn.Meta.PreBalances
-
-	fmt.Println(pre)
-
-	post := txn.Meta.PostBalances
-
-	fmt.Println(post)
+	// txn.Meta.PreTokenBalances
 
 	return nil
+}
+
+func findTxnMintBalance(tb []rpc.TokenBalance, address string) (balance int, found bool) {
+
+	for _, tokBal := range tb {
+		if tokBal.Owner.String() == address && tokBal.Mint.String() == TOKEN_ID {
+			amt, err := strconv.Atoi(tokBal.UiTokenAmount.Amount)
+			if err != nil {
+				return 0, false
+			}
+			found = true
+			balance = amt
+			return
+		}
+	}
+
+	return
+
 }

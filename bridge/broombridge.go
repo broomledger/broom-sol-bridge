@@ -48,7 +48,8 @@ type BroomBridge struct {
 	public  solana.PublicKey
 	client  rpc.Client
 	// public solana
-	runner *BridgeRunner
+	runner     *BridgeRunner
+	rpcAddress string
 }
 
 func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir string) *BroomBridge {
@@ -58,6 +59,8 @@ func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir s
 	bb := &BroomBridge{Executor: ex}
 
 	bb.LoadKeys()
+
+	bb.LoadRpcCredentials()
 
 	bb.DialClient()
 
@@ -77,6 +80,7 @@ func (bb *BroomBridge) RunSolScan() error {
 		splAddress,
 	)
 	if err != nil {
+		fmt.Println("could not get sigs: ", err)
 		return err
 	}
 
@@ -89,7 +93,7 @@ func (bb *BroomBridge) RunSolScan() error {
 
 		fmt.Println(s.Memo)
 
-		tx, err := bb.client.GetTransaction(context.Background(), s.Signature, &rpc.GetTransactionOpts{
+		txn, err := bb.client.GetTransaction(context.Background(), s.Signature, &rpc.GetTransactionOpts{
 			Encoding:                       solana.EncodingBase64,
 			Commitment:                     rpc.CommitmentFinalized,
 			MaxSupportedTransactionVersion: Uint64Ptr(0),
@@ -98,10 +102,20 @@ func (bb *BroomBridge) RunSolScan() error {
 			return err
 		}
 
-		err = bb.runner.ProcessSOLTxn(tx)
+		time.Sleep(time.Second)
+
+		fmt.Println("found txn: ", txn)
+		fmt.Println(txn)
+		fmt.Println(txn.Meta)
+		fmt.Println("pre")
+		fmt.Println(txn.Meta.PreTokenBalances[0].Mint)
+		fmt.Println("post")
+		fmt.Println(txn.Meta.PostTokenBalances[0].Mint)
+		err = bb.runner.ProcessSOLTxn(txn)
 		if err != nil {
 			return err
 		}
+		break
 
 	}
 
@@ -180,8 +194,18 @@ func (bb *BroomBridge) LoadKeys() {
 
 }
 
+func (bb *BroomBridge) LoadRpcCredentials() {
+	data, _ := os.ReadFile("rpc.address")
+	fmt.Println(string(data))
+	bb.rpcAddress = string(data)
+}
+
 func (bb *BroomBridge) DialClient() {
-	client := rpc.New("https://api.mainnet-beta.solana.com")
+	if bb.rpcAddress == "" {
+		panic("no rpc.address file loaded")
+	}
+
+	client := rpc.New(bb.rpcAddress)
 	bb.client = *client
 }
 

@@ -72,8 +72,20 @@ func TestSolScan(t *testing.T) {
 	fmt.Println("hello world")
 	bb := BroomBridge{}
 	bb.LoadKeys()
+	bb.LoadRpcCredentials()
 	fmt.Println(bb.public.String())
 	bb.DialClient()
+
+	// bridgeAddr := solana.MustPublicKeyFromBase58(BRIDGE_SOL_ADDRESS)
+
+	// mint := solana.MustPublicKeyFromBase58(TOKEN_ID)
+
+	// ata, _, _ := solana.FindAssociatedTokenAddress(
+	// 	bridgeAddr,
+	// 	mint,
+	// )
+
+	fmt.Println("starting ")
 
 	err := bb.RunSolScan()
 	if err != nil {
