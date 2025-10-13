@@ -75,21 +75,36 @@ func Uint64Ptr(v uint64) *uint64 { return &v }
 func (bb *BroomBridge) RunSolScan() error {
 	splAddress := solana.MustPublicKeyFromBase58(BRIDGE_SOL_ADDRESS)
 
+	mint := solana.MustPublicKeyFromBase58(TOKEN_ID)
+
+	associatedTokenAddress, _, _ := solana.FindAssociatedTokenAddress(
+		splAddress,
+		mint,
+	)
+
 	sigs, err := bb.client.GetSignaturesForAddress(
 		context.Background(),
-		splAddress,
+		associatedTokenAddress,
 	)
 	if err != nil {
 		fmt.Println("could not get sigs: ", err)
 		return err
 	}
 
-	fmt.Println("starting txn loop")
+	fmt.Println("starting txn loop1S")
 	fmt.Println("len of sigs: ", len(sigs))
 
 	for _, s := range sigs {
 
 		fmt.Println(s.Signature)
+		fmt.Println("4TqSbB3PV2WRneikNy18f28X7cdxjqGYanfzzeUYVug35QdkeBY2PgZMMbK2nXoTCExLBgEtetbwDRcHqBVaHxSE")
+
+		if s.Signature.String() != "4TqSbB3PV2WRneikNy18f28X7cdxjqGYanfzzeUYVug35QdkeBY2PgZMMbK2nXoTCExLBgEtetbwDRcHqBVaHxSE" {
+			fmt.Println("This is the wrong txn")
+			continue
+		}
+
+		fmt.Println("CORRECT TXN FOUND")
 
 		fmt.Println(s.Memo)
 
@@ -111,10 +126,11 @@ func (bb *BroomBridge) RunSolScan() error {
 		fmt.Println(txn.Meta.PreTokenBalances[0].Mint)
 		fmt.Println("post")
 		fmt.Println(txn.Meta.PostTokenBalances[0].Mint)
-		err = bb.runner.ProcessSOLTxn(txn)
+		err = bb.runner.ProcessSOLTxn(txn, s)
 		if err != nil {
 			return err
 		}
+
 		break
 
 	}

@@ -239,12 +239,35 @@ func (bb *BridgeRunner) RemoveBridgeBlock(hash string, height int) error {
 	return os.Remove(path)
 }
 
-func (br *BridgeRunner) ProcessSOLTxn(txn *rpc.GetTransactionResult) error {
+func (br *BridgeRunner) ProcessSOLTxn(txn *rpc.GetTransactionResult, sig *rpc.TransactionSignature) error {
 
 	// find balance increase
 
+	preBalance, found := findTxnMintBalance(txn.Meta.PreTokenBalances, BRIDGE_SOL_ADDRESS)
+
+	if !found {
+		return errors.New("no pre txn total found")
+	}
+	fmt.Println(preBalance)
+	fmt.Println(found)
 	// txn.Meta.PreTokenBalances
 
+	postBalance, found := findTxnMintBalance(txn.Meta.PostTokenBalances, BRIDGE_SOL_ADDRESS)
+	if !found {
+		return errors.New("no post txn total founf")
+	}
+	fmt.Println(postBalance)
+	fmt.Println(found)
+
+	totalAmount := postBalance - preBalance
+
+	broomAddress := ""
+	if sig.Memo != nil {
+		broomAddress = *sig.Memo
+	}
+
+	fmt.Println("total amount: ", totalAmount)
+	fmt.Println("broom address", broomAddress)
 	return nil
 }
 

@@ -53,13 +53,15 @@ func TestTransactionHandler(t *testing.T) {
 	bb := BroomBridge{}
 	bb.LoadKeys()
 	fmt.Println(bb.public.String())
+
+	bb.LoadRpcCredentials()
 	bb.DialClient()
 
 	// wallet := solana.NewWallet()
 	// public := wallet.PublicKey().String()
 	// fmt.Println("public: ", public)
 	//"5XGQBMBBPuzaA3nBbLbFhyytCT8dozt5U9WTubuFxpac"
-	err := bb.TransactionHandler(netnode.Transaction{Note: "5XGQBMBBPuzaA3nBbLbFhyytCT8dozt5U9WTubuFxpac", Amount: 10_123})
+	err := bb.TransactionHandler(netnode.Transaction{Note: "EL4FsBBKWDt1uJhQnANcG7NJ8r6prsX5mvbPe9N65QEv", Amount: 10_123})
 	if err != nil {
 		fmt.Println("err")
 		fmt.Println(err)
@@ -85,7 +87,7 @@ func TestSolScan(t *testing.T) {
 	// 	mint,
 	// )
 
-	fmt.Println("starting ")
+	fmt.Println("starting 111")
 
 	err := bb.RunSolScan()
 	if err != nil {
