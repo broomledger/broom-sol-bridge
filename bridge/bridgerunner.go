@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	netnode "github.com/canavan-a/broom/node/netnode"
+	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
@@ -28,6 +30,12 @@ const BROOM_BRIDGE_WALLET_ADDRESS = "my wallet address here"
 
 type BridgeRunner struct {
 	BridgeHandler func(netnode.Transaction) error
+}
+
+type SolTransaction struct {
+	Sig          string `json:"sig"`
+	BroomAddress string `json:"broomAddress"`
+	Amount       int    `json:"amount"`
 }
 
 func NewBridgeRunner(bridgeHandler func(netnode.Transaction) error) (br *BridgeRunner) {
@@ -239,9 +247,56 @@ func (bb *BridgeRunner) RemoveBridgeBlock(hash string, height int) error {
 	return os.Remove(path)
 }
 
-func (br *BridgeRunner) ProcessSOLTxn(txn *rpc.GetTransactionResult, sig *rpc.TransactionSignature) error {
+func (bb *BridgeRunner) GetSolTxn(sig string) (SolTransaction, error) {
 
-	// find balance increase
+	data, err := os.ReadFile(fmt.Sprintf("%s/%s.broom", PROCESSED_SOL_TXN_DIR, sig))
+	if err != nil {
+		return SolTransaction{}, err
+	}
+
+	var st SolTransaction
+
+	err = json.Unmarshal(data, &st)
+	if err != nil {
+		return SolTransaction{}, err
+	}
+
+	return st, nil
+}
+
+func (bb *BridgeRunner) SaveSolTxn(st SolTransaction) error {
+
+	data, err := json.Marshal(st)
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("%s/%s.broom", PROCESSED_SOL_TXN_DIR, st.Sig)
+	return os.WriteFile(path, data, 0644)
+}
+
+func (br *BridgeRunner) ProcessSOLTxn(sig *rpc.TransactionSignature, client *rpc.Client) error {
+
+	// find stored transaction so we know what we need to process
+	_, err := br.GetSolTxn(sig.Signature.String())
+	if err != nil {
+		return err
+	}
+
+	var st SolTransaction
+
+	st.Sig = sig.Signature.String()
+
+	defer br.SaveSolTxn(st)
+
+	txn, err := client.GetTransaction(context.Background(), sig.Signature, &rpc.GetTransactionOpts{
+		Encoding:                       solana.EncodingBase64,
+		Commitment:                     rpc.CommitmentFinalized,
+		MaxSupportedTransactionVersion: Uint64Ptr(0),
+	})
+	if err != nil {
+		return err
+	}
 
 	preBalance, found := findTxnMintBalance(txn.Meta.PreTokenBalances, BRIDGE_SOL_ADDRESS)
 
@@ -261,10 +316,14 @@ func (br *BridgeRunner) ProcessSOLTxn(txn *rpc.GetTransactionResult, sig *rpc.Tr
 
 	totalAmount := postBalance - preBalance
 
+	st.Amount = totalAmount
+
 	broomAddress := ""
 	if sig.Memo != nil {
 		broomAddress = *sig.Memo
 	}
+
+	st.BroomAddress = broomAddress
 
 	fmt.Println("total amount: ", totalAmount)
 	fmt.Println("broom address", broomAddress)

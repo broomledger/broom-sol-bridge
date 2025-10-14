@@ -96,42 +96,10 @@ func (bb *BroomBridge) RunSolScan() error {
 
 	for _, s := range sigs {
 
-		fmt.Println(s.Signature)
-		fmt.Println("4TqSbB3PV2WRneikNy18f28X7cdxjqGYanfzzeUYVug35QdkeBY2PgZMMbK2nXoTCExLBgEtetbwDRcHqBVaHxSE")
-
-		if s.Signature.String() != "4TqSbB3PV2WRneikNy18f28X7cdxjqGYanfzzeUYVug35QdkeBY2PgZMMbK2nXoTCExLBgEtetbwDRcHqBVaHxSE" {
-			fmt.Println("This is the wrong txn")
-			continue
-		}
-
-		fmt.Println("CORRECT TXN FOUND")
-
-		fmt.Println(s.Memo)
-
-		txn, err := bb.client.GetTransaction(context.Background(), s.Signature, &rpc.GetTransactionOpts{
-			Encoding:                       solana.EncodingBase64,
-			Commitment:                     rpc.CommitmentFinalized,
-			MaxSupportedTransactionVersion: Uint64Ptr(0),
-		})
+		err = bb.runner.ProcessSOLTxn(s, &bb.client)
 		if err != nil {
 			return err
 		}
-
-		time.Sleep(time.Second)
-
-		fmt.Println("found txn: ", txn)
-		fmt.Println(txn)
-		fmt.Println(txn.Meta)
-		fmt.Println("pre")
-		fmt.Println(txn.Meta.PreTokenBalances[0].Mint)
-		fmt.Println("post")
-		fmt.Println(txn.Meta.PostTokenBalances[0].Mint)
-		err = bb.runner.ProcessSOLTxn(txn, s)
-		if err != nil {
-			return err
-		}
-
-		break
 
 	}
 
