@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -56,6 +60,9 @@ type BroomBridge struct {
 	runner     *BridgeRunner
 	rpcAddress string
 	broomKeys  BroomKeys
+	//
+	seeds []string
+	nonce int
 }
 
 func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir string) *BroomBridge {
@@ -70,9 +77,24 @@ func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir s
 
 	bb.DialClient()
 
-	bb.runner = NewBridgeRunner(bb.TransactionHandler)
+	bb.runner = NewBridgeRunner(bb.TransactionHandler, bb.runner.SendBroom)
 
 	return bb
+}
+
+func (bb *BroomBridge) GetNonceNetwork() {
+	if len(bb.seeds) == 0 {
+		panic("no seeds, nonce is bad")
+	}
+
+	// just use first seed
+	_, nonce, err := CheckSeedBalance(bb.seeds[0], bb.broomKeys.Pub)
+	if err != nil {
+		panic("could not sync nonce")
+	}
+
+	bb.nonce = int(nonce)
+
 }
 
 // SOL -> Broom
@@ -328,6 +350,14 @@ func (bb *BroomBridge) MakeAndWaitForAta(address string) (exists bool, err error
 func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
 	bb.Node = netnode.ActivateNode(bb.MsgChan, bb.BlockChan, bb.EgressBlockChan, bb.TxnChan, bb.EgressTxnChan, self, seeds...)
 
+	// set seeds
+	bb.seeds = seeds
+
+	//
+	fmt.Println("getting nonce from network")
+	bb.GetNonceNetwork()
+	fmt.Println("nonce is:", bb.nonce)
+
 	if len(seeds) != 0 {
 		for {
 			if len(bb.Node.GetAddressSample()) != 0 {
@@ -364,7 +394,25 @@ func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
 
 }
 
-func (bb *BroomBridge) sendBroom(address string, amount int) {
+func (bb *BroomBridge) SendBroom(address string, amount int) {
+
+	var txn = netnode.Transaction{
+		To:     address,
+		From:   bb.broomKeys.Pub,
+		Amount: int64(amount),
+		Note:   "sol bridge txn",
+		Nonce:  int64(bb.nonce),
+	}
+
+	err := txn.Sign(bb.broomKeys.Priv)
+	if err != nil {
+		panic("should be able to sign txn")
+	}
+
+	// let node handle broadcasting txn through egress
+	bb.Executor.EgressTxnChan <- txn
+
+	bb.nonce += 1
 
 }
 
@@ -570,4 +618,50 @@ func (ex *BroomBridge) bb_Loop() {
 
 	}
 
+}
+
+func CheckSeedBalance(seed, address string) (blance int64, nonce int64, err error) {
+	type Payload struct {
+		Address string `json:"address"`
+	}
+
+	payload := Payload{
+		Address: address,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	type Response struct {
+		Balance int64 `json:"balance"`
+		Nonce   int64 `json:"nonce"`
+	}
+
+	secureRequest := ""
+
+	host := seed
+	if net.ParseIP(host) == nil {
+		secureRequest = "s"
+	}
+
+	resp, err := http.Post(fmt.Sprintf("http%s://%s/address", secureRequest, seed), "application/json", bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, err
+	}
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var res Response
+
+	err = json.Unmarshal(respBytes, &res)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return res.Balance, res.Nonce, nil
 }

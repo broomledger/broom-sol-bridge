@@ -17,7 +17,6 @@ func main() {
 		bb.Executor.DownloadBackupFileFromPeer("node.broomledger.com")
 	} else {
 		bb.bb_Start(args[0], args[1:]...)
-
 	}
 
 }

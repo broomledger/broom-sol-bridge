@@ -30,6 +30,7 @@ const BROOM_BRIDGE_WALLET_ADDRESS = "my wallet address here"
 
 type BridgeRunner struct {
 	BridgeHandler func(netnode.Transaction) error
+	SendBroom     func(string, int) error
 }
 
 type SolTransaction struct {
@@ -38,7 +39,7 @@ type SolTransaction struct {
 	Amount       int    `json:"amount"`
 }
 
-func NewBridgeRunner(bridgeHandler func(netnode.Transaction) error) (br *BridgeRunner) {
+func NewBridgeRunner(bridgeHandler func(netnode.Transaction) error, sendBroom func(string, int) error) (br *BridgeRunner) {
 	if _, err := os.Stat(BRIDGE_BLOCK_DIR); os.IsNotExist(err) {
 		_ = os.MkdirAll(BRIDGE_BLOCK_DIR, 0755) // create if missing
 	}
@@ -327,6 +328,9 @@ func (br *BridgeRunner) ProcessSOLTxn(sig *rpc.TransactionSignature, client *rpc
 
 	fmt.Println("total amount: ", totalAmount)
 	fmt.Println("broom address", broomAddress)
+
+	// send broom txn
+
 	return nil
 }
 
