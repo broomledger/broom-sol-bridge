@@ -42,6 +42,11 @@ const INITIAL_FEE_PERCENTAGE = 0.10
 
 const STANDARD_FEE_PERCENTAGE = 0.001
 
+type BroomKeys struct {
+	Pub  string `json:"publicKey"`
+	Priv string `json:"privateKey"`
+}
+
 type BroomBridge struct {
 	*netnode.Executor
 	private solana.PrivateKey
@@ -50,6 +55,7 @@ type BroomBridge struct {
 	// public solana
 	runner     *BridgeRunner
 	rpcAddress string
+	broomKeys  BroomKeys
 }
 
 func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir string) *BroomBridge {
@@ -58,7 +64,7 @@ func NewBroomBridge(myAddress string, miningNote string, dir string, ledgerDir s
 
 	bb := &BroomBridge{Executor: ex}
 
-	bb.LoadKeys()
+	bb.LoadSolKeys()
 
 	bb.LoadRpcCredentials()
 
@@ -162,7 +168,7 @@ func (bb *BroomBridge) TransactionHandler(txn netnode.Transaction) error {
 	return nil
 }
 
-func (bb *BroomBridge) LoadKeys() {
+func (bb *BroomBridge) LoadSolKeys() {
 	data, _ := os.ReadFile("id.json")
 
 	var keyBytes []byte
@@ -178,6 +184,13 @@ func (bb *BroomBridge) LoadKeys() {
 
 }
 
+func (bb *BroomBridge) LoadBroomKeys() {
+	data, _ := os.ReadFile("keys.broom")
+	var broomkeys BroomKeys
+	json.Unmarshal(data, &broomkeys)
+
+	bb.broomKeys = broomkeys
+}
 func (bb *BroomBridge) LoadRpcCredentials() {
 	data, _ := os.ReadFile("rpc.address")
 	fmt.Println(string(data))
@@ -348,6 +361,10 @@ func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
 	bb.bb_Loop()
 
 	cancel()
+
+}
+
+func (bb *BroomBridge) sendBroom(address string, amount int) {
 
 }
 

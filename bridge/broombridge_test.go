@@ -11,7 +11,7 @@ import (
 func TestLoadKeys(t *testing.T) {
 	fmt.Println("hello world")
 	bb := BroomBridge{}
-	bb.LoadKeys()
+	bb.LoadSolKeys()
 	fmt.Println(bb.public.String())
 	bb.DialClient()
 
@@ -51,7 +51,7 @@ func TestLoadKeys(t *testing.T) {
 func TestTransactionHandler(t *testing.T) {
 	fmt.Println("hello world")
 	bb := BroomBridge{}
-	bb.LoadKeys()
+	bb.LoadSolKeys()
 	fmt.Println(bb.public.String())
 
 	bb.LoadRpcCredentials()
@@ -73,7 +73,7 @@ func TestTransactionHandler(t *testing.T) {
 func TestSolScan(t *testing.T) {
 	fmt.Println("hello world")
 	bb := BroomBridge{}
-	bb.LoadKeys()
+	bb.LoadSolKeys()
 	bb.LoadRpcCredentials()
 	fmt.Println(bb.public.String())
 	bb.DialClient()
