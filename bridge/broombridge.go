@@ -383,6 +383,14 @@ func (bb *BroomBridge) bb_Start(self string, seeds ...string) {
 		fmt.Println("backup done")
 	}, time.Second*netnode.BACKUP_FREQUENCY)
 
+	bb.Node.Schedule(func() {
+		err := bb.RunSolScan()
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("sol scan error")
+		}
+	}, 15*time.Minute)
+
 	fmt.Println("escaped network sync height", bb.Database.Ledger.BlockHeight)
 
 	bb.MiningBlock.Height = bb.Database.Ledger.BlockHeight + 1

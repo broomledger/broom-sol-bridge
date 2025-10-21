@@ -158,6 +158,8 @@ func (bb *BridgeRunner) ProcessBridge(currentHeight int, hashChain []netnode.Has
 
 	}
 
+	fmt.Println("Pending bridge blocks: ", len(pendingBridgeBlocks))
+
 	for _, pending := range pendingBridgeBlocks {
 
 		critialDepth := currentHeight - pending.Height
@@ -224,6 +226,7 @@ func (br *BridgeRunner) ProcessBridgeTransaction(txn netnode.Transaction) {
 
 	err := br.SendSol(txn)
 	if err != nil {
+		fmt.Println("sol sending failed")
 		// do not save txn (skips), it failed
 		return
 	}
@@ -330,6 +333,11 @@ func (br *BridgeRunner) ProcessSOLTxn(sig *rpc.TransactionSignature, client *rpc
 	fmt.Println("broom address", broomAddress)
 
 	// send broom txn
+	err = br.SendBroom(broomAddress, totalAmount)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("could not send broom")
+	}
 
 	return nil
 }
