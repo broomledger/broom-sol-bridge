@@ -1,4 +1,4 @@
-![Pending Release](https://img.shields.io/badge/release-pending-red)
+![Pre-release](https://img.shields.io/badge/release-pre--release-red)
 
 
 # Bridge for Broom Ledger Token to Solana  
